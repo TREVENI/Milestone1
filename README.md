@@ -161,7 +161,7 @@ Each crosswalk has two zones, given as polygons in meters from the intersection 
 |---|---|
 | `remaining_time_ms` | Time left in the current phase |
 | `source_timestamp_ms` | When the controller produced the data |
-| `receive_timestamp_ms` | When TRIVENI received it |
+| `receive_timestamp_ms` | When pedstrain's device received it |
 
 **Signal age** = `now_ms - source_timestamp_ms`. The signal is stale if its age exceeds `signal_freshness_ms`. Only the **pedestrian signal** of each crosswalk is used.
 
