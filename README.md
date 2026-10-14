@@ -256,13 +256,12 @@ Top-level fields:
 
 Each crosswalk is named after the side of the intersection where it sits. Each zone is a rectangle, stored as four `[x, y]` vertices.
 
-| Crosswalk | `heading_deg` | Walking direction | Entry zone (red) | Exit zone (green) |
-|---|---|---|---|---|
-| `CW_NORTH` | 180 | West | x 3 to 8, y 8 to 11 | x -8 to -3, y 8 to 11 |
-| `CW_EAST` | 90 | North | x 8 to 11, y -8 to -3 | x 8 to 11, y 3 to 8 |
-| `CW_SOUTH` | 0 | East | x -8 to -3, y -11 to -8 | x 3 to 8, y -11 to -8 |
-| `CW_WEST` | 270 | South | x -11 to -8, y 3 to 8 | x -11 to -8, y -8 to -3 |
-
+| Crosswalk | `heading_deg` | Entry zone (red) | Exit zone (green) |
+|---|---|---|---|
+| `CW_NORTH` | 180 | (3, 8), (8, 8), (8, 11), (3, 11) | (-8, 8), (-3, 8), (-3, 11), (-8, 11) |
+| `CW_EAST` | 90 | (8, -8), (11, -8), (11, -3), (8, -3) | (8, 3), (11, 3), (11, 8), (8, 8) |
+| `CW_SOUTH` | 0 | (-8, -11), (-3, -11), (-3, -8), (-8, -8) | (3, -11), (8, -11), (8, -8), (3, -8) |
+| `CW_WEST` | 270 | (-11, 3), (-8, 3), (-8, 8), (-11, 8) | (-11, -8), (-8, -8), (-8, -3), (-11, -3) |
 Exact vertices as stored in the JSON:
 
 ```json
