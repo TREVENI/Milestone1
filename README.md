@@ -1,7 +1,4 @@
-# TRIVENI Core Guidance & Safety Emulator v0.1 (Milestone 01)
-
-> **Pure-software, safety-critical-style prototype.**  
-> No hardware, no BLE/UWB/GPS, no Android, no real traffic signal, no V2X hub, no AI/ML.
+# TRIVENI milestone 1
 
 ---
 
