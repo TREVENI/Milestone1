@@ -1,0 +1,9 @@
+# TRIVENI Core Guidance & Safety Emulator – configuration
+# initial engineering values for testing, easy to change
+
+signal_freshness_ms: 500
+localization_freshness_ms: 500
+max_position_uncertainty_m: 1.5
+minimum_remaining_walk_time_ms: 5000
+wrong_intersection_result: UNAVAILABLE   # or FAULT
+require_remaining_time: true             # if true and remaining_time_ms is missing, WALK is not allowed

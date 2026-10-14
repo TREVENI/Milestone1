@@ -1,0 +1,51 @@
+# === Python cache files ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# === pytest cache ===
+.pytest_cache/
+
+# === Log files ===
+logs/
+
+# === Acceptance checklist ===
+ACCEPTANCE_CHECKLIST.md
+
+# === Test configuration ===
+
+# === Specification document ===
+SPEC.md
+
+# === Virtual environments ===
+.venv/
+venv/
+env/
+
+# === Distribution / packaging ===
+*.egg-info/
+dist/
+build/
+*.egg
+
+# === IDE / editor files ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === OS files ===
+.DS_Store
+Thumbs.db
+
+# === Test reports ===
+test.report
+.coverage
+htmlcov/
+*.xml
+
+# === Byte-compiled / optimized / DLL files ===
+*.so
+*.pyd
