@@ -375,7 +375,7 @@ Alongside these fields the engine records predicate results (`Sv` to `Tv`), cand
 
 **Limitations**
 
-- **Mid-crossing guidance is not defined.** Once a pedestrian leaves the entry zone, the engine returns `UNAVAILABLE / CROSSWALK_NOT_ESTABLISHED`. This is intentional. Milestone 02 will define mid-crossing and exit-zone behavior.
+
 - `localization_source` must be `"SIMULATED"`. Real adapters will add other allowed values.
 - `heading_deg` is stored in the map and localization but is not yet used in any safety predicate.
 - No hardware integration of any kind.
