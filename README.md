@@ -30,11 +30,7 @@ python run_demo.py --pause
 pytest -v
 ```
 
-### How to record the demo
 
-Run `python run_demo.py --pause` and use any screen-recording tool (OBS, Windows Game Bar `Win+G`, etc.) to capture the terminal.  Each demo pauses before the next one, giving you time to comment.
-
----
 
 ## How it works
 
