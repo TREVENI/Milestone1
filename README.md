@@ -49,7 +49,7 @@ Output is exactly **one** of `WALK | WAIT | UNAVAILABLE | FAULT` plus one or mor
 | Red man (DON'T WALK) | `DONT_WALK` |
 | Time left in current phase | `remaining_time_ms` |
 | Time controller produced data | `source_timestamp_ms` |
-| Time TRIVENI received it | `receive_timestamp_ms` |
+| Time pedestrian  received it | `receive_timestamp_ms` |
 
 **Signal age** = `now_ms - source_timestamp_ms`.  Stale if age > `signal_freshness_ms`.  
 Only the **pedestrian signal** of each crosswalk is used. Nothing connects to a real signal in this milestone.  
