@@ -1,160 +1,98 @@
-# TRIVENI milestone 1
+# TRIVENI-ITS: Core Guidance & Safety Emulator (Milestone 01, v0.1)
+
+**Traffic-Responsive Infrastructure for Visually-impaired Enablement at Intersections**
+
+TRIVENI helps blind, low-vision and other vulnerable pedestrians cross signalized intersections by combining traffic-signal state, crosswalk geometry, pedestrian location and confidence, and system health into one safe guidance decision.
+
+This repository is **Milestone 01**: a pure-software, technology-independent safety core. It uses synthetic inputs only. No BLE, UWB, GPS, Android app or real traffic controller is involved yet.
+
+> **The question this code answers, once per tick:**
+> *Given signal state, crosswalk information, pedestrian position/confidence, timing, and system health, what guidance should TRIVENI produce?*
+
+The output is exactly **one** of `WALK | WAIT | UNAVAILABLE | FAULT`, plus one or more reason codes. Every decision is logged.
 
 ---
 
-## Setup
+## Table of contents
+
+1. [Quick start](#quick-start)
+2. [Safety principles](#safety-principles)
+3. [How it works](#how-it-works)
+4. [Repository structure](#repository-structure)
+5. [Data models](#data-models)
+6. [Configuration](#configuration)
+7. [Demo intersection: Kemps Corner](#demo-intersection-kemps-corner)
+8. [Demos](#demos)
+9. [Tests](#tests)
+10. [Decision log](#decision-log)
+11. [Reason codes](#reason-codes)
+12. [Known limitations and assumptions](#known-limitations-and-assumptions)
+13. [Out of scope for Milestone 01](#out-of-scope-for-milestone-01)
+
+---
+
+## Quick start
+
+Requires Python 3.x and Git.
 
 ```bash
+# 1. Create and activate a virtual environment
 python -m venv .venv
 
-# Windows:
+# Windows
 .venv\Scripts\activate
-# macOS / Linux:
+# macOS / Linux
 source .venv/bin/activate
 
+# 2. Install dependencies
 pip install -r requirements.txt
-```
 
----
-
-## Run
-
-```bash
-# All demos in sequence
+# 3. Run all demos
 python run_demo.py
 
-# With pauses for live demo / screen recording
+# Optional: pause between demos (for live demo / screen recording)
 python run_demo.py --pause
 
-# Run all tests
+# 4. Run the automated tests
 pytest -v
 ```
 
+---
 
+## Safety principles
+
+These rules shape every line of the code.
+
+1. TRIVENI **never controls or alters** the traffic signal. Any future connection must be authorized and read-only.
+2. A signal showing `WALK` is **not sufficient by itself** to tell a pedestrian to cross.
+3. A positive crossing recommendation depends on **multiple validated conditions**.
+4. Stale, contradictory, missing or low-confidence information is **never converted into certainty**.
+5. If required information is unavailable or unreliable, the system **fails conservatively** toward `WAIT`, `UNAVAILABLE` or `FAULT`.
+6. Every guidance decision can be **reconstructed from logs**.
+7. No core module is hard-wired to one technology (BLE, UWB, GPS, computer vision).
+
+> **Safety rule:** the software must never produce `WALK` if any mandatory safety predicate is invalid.
+> **Acceptance metric:** false `WALK` events in defined invalid scenarios = **0**.
+
+---
 
 ## How it works
 
-TRIVENI answers one question per tick:
-
-> *Given signal state, crosswalk information, pedestrian position/confidence, timing, and system health — what guidance should TRIVENI produce?*
-
-Output is exactly **one** of `WALK | WAIT | UNAVAILABLE | FAULT` plus one or more reason codes.
-
-### SPaT mapping (Signal Phase and Timing)
-
-| Physical display | `signal_state` field |
-|---|---|
-| Pedestrian green man (WALK) | `WALK` |
-| Flashing hand (clearance) | `CLEARANCE` |
-| Red man (DON'T WALK) | `DONT_WALK` |
-| Time left in current phase | `remaining_time_ms` |
-| Time controller produced data | `source_timestamp_ms` |
-| Time pedestrian  received it | `receive_timestamp_ms` |
-
-**Signal age** = `now_ms - source_timestamp_ms`.  Stale if age > `signal_freshness_ms`.  
-Only the **pedestrian signal** of each crosswalk is used. Nothing connects to a real signal in this milestone.  
-**WALK alone does NOT mean "cross"** — all six safety predicates must hold.
-
-### Pedestrian zones
-
-Each crosswalk has two zones (polygons in meters from intersection centre):  
-- **Entry zone** — where the pedestrian *waits* to cross (curb side).  
-- **Exit zone** — the far side (destination side).  
-
-The pedestrian's position is a circle: centre = `(x_m, y_m)`, radius = `position_uncertainty_m`.  
-The engine tests whether this circle overlaps a zone.
-
-### Per-tick decision loop
-
-```
-for every tick:
-    1. Check intersection identity
-    2. Check crosswalk identity (find entry-zone overlaps)
-    3. Check signal state (WALK / DONT_WALK / CLEARANCE)
-    4. Check signal freshness & timestamp validity
-    5. Check localization freshness & timestamp validity
-    6. Check localization uncertainty
-    7. Check system health
-    8. Check timing (remaining walk time)
-    9. Produce exactly ONE guidance state
-   10. Produce >= 1 reason codes
+```mermaid
+flowchart LR
+    S[Synthetic traffic signal] --> SS[SignalState]
+    M[Synthetic crosswalk map] --> CM[CrosswalkMap]
+    L[Synthetic pedestrian location] --> LS[LocalizationState]
+    H[System health] --> SH[SystemHealth]
+    SS --> E[Safety / Guidance Engine]
+    CM --> E
+    LS --> E
+    SH --> E
+    E --> D["WALK / WAIT / UNAVAILABLE / FAULT"]
+    D --> LOG[Structured event log .jsonl]
 ```
 
-### Six safety predicates (all must hold for WALK)
-
-| Predicate | Meaning |
-|---|---|
-| **Sv** | Signal state is valid and is WALK |
-| **Cv** | Intended crosswalk is established (exactly one entry zone overlap) |
-| **Lv** | Localization is present, same intersection, uncertainty <= max |
-| **Fv** | Required information is fresh |
-| **Hv** | Required system components are healthy |
-| **Tv** | Enough remaining walk time |
-
-**Priority (most conservative wins):** `FAULT > UNAVAILABLE > WAIT > WALK`
-
-Any uncaught exception -> `FAULT / UNKNOWN_ERROR` (never WALK).
-
----
-
-## Demos A-E
-
-### Demo A — Valid crossing
-CW_NORTH = WALK, pedestrian at (5.5, 9.5) in CW_NORTH entry, fresh data, system healthy.  
-**Expected: WALK / ALL_REQUIRED_CONDITIONS_VALID**
-
-### Demo B — Ambiguous crosswalk
-CW_NORTH = WALK, pedestrian at (8.0, 8.0) — shared NE corner of CW_NORTH entry and CW_EAST exit.  
-**Expected: UNAVAILABLE / CROSSWALK_AMBIGUOUS**
-
-### Demo C — Stale signal
-CW_NORTH = WALK, signal age 900 ms (above 500 ms threshold).  
-**Expected: UNAVAILABLE / SIGNAL_STALE**
-
-### Demo D — DON'T WALK signal
-CW_NORTH = DONT_WALK.  
-**Expected: WAIT / SIGNAL_NOT_WALK**
-
-### Demo E — Journey replay (100 000 ms to 120 000 ms, 1 tick/s)
-
-| Stage | Time (ms) | Signal | Pedestrian |
-|---|---|---|---|
-| 1 | 100 000 - 104 999 | DONT_WALK | Waiting at (5.5, 9.5) CW_NORTH entry |
-| 2 | 105 000 - 105 999 | WALK (18 s) | Still at curb |
-| 3 | 106 000 - 112 499 | WALK | Walking west at 0.8 m/s |
-| 4 | 112 500 - 120 000 | WALK | Past entry zone, far side |
-
-> **Note:** Once the pedestrian leaves the CW_NORTH entry zone in Stage 3 the engine outputs  
-> `UNAVAILABLE / CROSSWALK_NOT_ESTABLISHED` — mid-crossing guidance is not defined in Milestone 01.  
-> See *Known limitations* below.
-
----
-
-## Reason code table
-
-| Code | Meaning |
-|---|---|
-| `ALL_REQUIRED_CONDITIONS_VALID` | All predicates Sv-Tv passed -> WALK |
-| `SIGNAL_NOT_WALK` | Signal is DONT_WALK or CLEARANCE |
-| `SIGNAL_MISSING` | No SignalState for established crosswalk |
-| `SIGNAL_STALE` | Signal age > `signal_freshness_ms` |
-| `SIGNAL_TIMESTAMP_INVALID` | Contradictory or future source timestamp |
-| `LOCALIZATION_MISSING` | No localization data |
-| `LOCALIZATION_STALE` | Localization age > `localization_freshness_ms` |
-| `LOCALIZATION_TIMESTAMP_INVALID` | Negative or future localization timestamp |
-| `LOCALIZATION_UNCERTAINTY_TOO_HIGH` | uncertainty_m > `max_position_uncertainty_m` |
-| `WRONG_INTERSECTION` | Data belongs to a different intersection |
-| `CROSSWALK_AMBIGUOUS` | Position circle overlaps zones of >1 crosswalk |
-| `CROSSWALK_NOT_ESTABLISHED` | Position not in any entry zone |
-| `CROSSWALK_MISMATCH` | Established crosswalk != intended crosswalk |
-| `SYSTEM_UNHEALTHY` | A critical component has FAULT status |
-| `SYSTEM_DEGRADED` | A component is DEGRADED (no FAULT present) |
-| `INSUFFICIENT_REMAINING_TIME` | Remaining walk time < minimum threshold |
-| `UNKNOWN_ERROR` | Unexpected exception -> always FAULT, never WALK |
-
----
-
-## Technology adapter table
+Future technologies connect through adapters that convert real data into these same internal objects:
 
 | Future technology | Internal TRIVENI object |
 |---|---|
@@ -164,22 +102,166 @@ CW_NORTH = DONT_WALK.
 | Edge hardware monitoring | `SystemHealth` |
 | Android / wearable | `GuidanceDecision` |
 
-*Future adapters convert real technologies into these objects, so feasibility can be tested without redesigning the architecture.*
+### The six safety predicates
+
+`WALK = Sv ∧ Cv ∧ Lv ∧ Fv ∧ Hv ∧ Tv`
+
+| Predicate | Meaning | If it fails |
+|---|---|---|
+| **Sv** | Signal state is valid and is `WALK` | `WAIT` |
+| **Cv** | Crosswalk is established: the position circle overlaps exactly one crosswalk, in its entry zone | `UNAVAILABLE` |
+| **Lv** | Localization is present, from the same intersection, with uncertainty ≤ max | `UNAVAILABLE` |
+| **Fv** | Required information is fresh, and timestamps are consistent | `UNAVAILABLE` |
+| **Hv** | Required system components are healthy | `FAULT` (or `UNAVAILABLE` if only degraded) |
+| **Tv** | Enough walk time remains | `WAIT` |
+
+**Priority (most conservative wins):** `FAULT > UNAVAILABLE > WAIT > WALK`
+
+The engine collects **all** failures in a tick, picks the most conservative decision, and keeps every reason code. It is pure and deterministic: no wall-clock access, no hidden state, no side effects. Any uncaught exception becomes `FAULT / UNKNOWN_ERROR`, never `WALK`.
+
+### Per-tick decision loop
+
+```
+for every tick:
+    1.  Check intersection identity
+    2.  Check crosswalk identity        (find zone overlaps)
+    3.  Check signal state              (WALK / DONT_WALK / CLEARANCE)
+    4.  Check signal freshness and timestamp validity
+    5.  Check localization freshness and timestamp validity
+    6.  Check localization uncertainty
+    7.  Check system health
+    8.  Check timing                    (remaining walk time)
+    9.  Produce exactly ONE guidance state
+    10. Produce one or more reason codes
+```
+
+### Pedestrian position as an uncertainty circle
+
+The pedestrian's position is not a point. It is a circle:
+
+- **centre** = `(x_m, y_m)`
+- **radius** = `position_uncertainty_m`
+
+The engine tests whether this circle overlaps each crosswalk zone (`CrosswalkMap.which_crosswalk_zones_overlap`). A circle that touches zones of more than one crosswalk means the system cannot be sure where the pedestrian is, so it returns `CROSSWALK_AMBIGUOUS`. Touching counts as overlapping, which is the conservative direction.
+
+Each crosswalk has two zones, given as polygons in meters from the intersection centre:
+
+- **Entry zone**: where the pedestrian *waits* to cross (curb side).
+- **Exit zone**: the far side (destination side).
+
+### SPaT mapping (Signal Phase and Timing)
+
+| Physical display | `signal_state` value |
+|---|---|
+| Pedestrian green man | `WALK` |
+| Flashing hand (clearance) | `CLEARANCE` |
+| Red man | `DONT_WALK` |
+
+| Field | Meaning |
+|---|---|
+| `remaining_time_ms` | Time left in the current phase |
+| `source_timestamp_ms` | When the controller produced the data |
+| `receive_timestamp_ms` | When TRIVENI received it |
+
+**Signal age** = `now_ms - source_timestamp_ms`. The signal is stale if its age exceeds `signal_freshness_ms`. Only the **pedestrian signal** of each crosswalk is used.
 
 ---
 
-## Known limitations / next milestone
+## Repository structure
 
-- **Mid-crossing guidance not defined.** Once a pedestrian leaves the entry zone, the engine outputs `UNAVAILABLE / CROSSWALK_NOT_ESTABLISHED`.  This is intentional; Milestone 02 will define mid-crossing and exit-zone semantics.
-- **`localization_source` must be `"SIMULATED"`** in this milestone.  Real adapters will add other allowed values.
-- No real-time hardware integration of any kind.
+```
+triveni/
+├── README.md
+├── requirements.txt
+├── run_demo.py                      # runs the demo scenarios
+├── config/
+│   └── triveni.yaml                 # all safety thresholds
+├── data/
+│   └── intersection_demo.json       # Kemps Corner map
+├── triveni/
+│   ├── models/
+│   │   ├── signal_state.py
+│   │   ├── localization_state.py
+│   │   ├── system_health.py
+│   │   ├── crosswalk_map.py         # geometry + zone-overlap queries
+│   │   └── guidance_decision.py
+│   ├── simulator/
+│   │   ├── signal_simulator.py      # WALK, DON'T WALK, missing, stale, delayed...
+│   │   └── pedestrian_simulator.py  # named localization presets
+│   ├── safety/
+│   │   └── safety_engine.py         # the decision logic
+│   └── logging/
+│       └── event_logger.py          # JSON Lines logger
+└── tests/
+    └── test_safety_engine.py
+```
 
 ---
 
-## Assumptions
+## Data models
 
-Where the specification was ambiguous the most conservative (non-WALK) interpretation was applied:
+Each model validates its required fields and rejects clearly invalid input (missing intersection ID, negative uncertainty, unsupported signal state, invalid health value).
 
-1. **Ambiguity rule:** A position that overlaps *any* zone (entry or exit) of more than one crosswalk is treated as CROSSWALK_AMBIGUOUS, not just entry-entry overlaps.  This is the safest interpretation and matches the spec statement "find every crosswalk whose ENTRY or EXIT zone overlaps the circle… more than one crosswalk -> CROSSWALK_AMBIGUOUS".
-2. **Missing `require_remaining_time`:** Defaults to `true` if absent from config.
-3. **`wrong_intersection_result`:** Defaults to `UNAVAILABLE` if absent from config.
+| Model | Purpose | Key fields |
+|---|---|---|
+| `SignalState` | Pedestrian signal for one crosswalk | `intersection_id`, `crosswalk_id`, `signal_state`, `remaining_time_ms`, `source_timestamp_ms`, `receive_timestamp_ms`, `source_health` |
+| `LocalizationState` | Estimated pedestrian position | `intersection_id`, `x_m`, `y_m`, `heading_deg`, `position_uncertainty_m`, `localization_source`, `timestamp_ms`, `health` |
+| `CrosswalkMap` | Intersection geometry | `intersection_id`, crosswalks with `entry_zone`, `exit_zone`, `heading_deg` |
+| `SystemHealth` | Component status | `edge_service`, `signal_input`, `localization_input`, `map_loaded`, `clock_status` |
+| `GuidanceDecision` | Engine output | `decision`, `reason_codes`, `intersection_id`, `crosswalk_id`, `decision_timestamp_ms` |
+
+`localization_source` is always `"SIMULATED"` in this milestone.
+
+---
+
+## Configuration
+
+All safety thresholds live in `config/triveni.yaml`, never in code. The values below are initial engineering values for testing and are meant to be tuned through experiments.
+
+```yaml
+signal_freshness_ms: 500
+localization_freshness_ms: 500
+max_position_uncertainty_m: 1.5
+minimum_remaining_walk_time_ms: 5000
+require_remaining_time: true
+wrong_intersection_result: UNAVAILABLE   # or FAULT
+```
+
+| Key | Meaning |
+|---|---|
+| `signal_freshness_ms` | Maximum allowed signal age |
+| `localization_freshness_ms` | Maximum allowed localization age |
+| `max_position_uncertainty_m` | Maximum allowed uncertainty radius |
+| `minimum_remaining_walk_time_ms` | Minimum walk time needed to start crossing |
+| `require_remaining_time` | If `true`, a missing `remaining_time_ms` blocks `WALK` |
+| `wrong_intersection_result` | Decision for data from the wrong intersection |
+
+---
+
+## Demo intersection: Kemps Corner
+
+`data/intersection_demo.json` models **INT_KEMPS_CORNER** (Kemps Corner, Mumbai).
+
+- Origin `(0, 0)` = intersection centre
+- `+x` = East, `+y` = North
+- Units: meters
+- `heading_deg`: 0° = East, 90° = North, counter-clockwise
+
+Each zone is a rectangle (`x_min, y_min` to `x_max, y_max`):
+
+| Crosswalk | Entry zone (red) | Exit zone (green) |
+|---|---|---|
+| `CW_NORTH` | (3, 8) to (8, 11) | (-8, 8) to (-3, 11) |
+| `CW_WEST` | (-11, 3) to (-8, 8) | (-11, -8) to (-8, -3) |
+| `CW_SOUTH` | (-8, -11) to (-3, -8) | (3, -11) to (8, -8) |
+| `CW_EAST` | (8, -8) to (11, -3) | (8, 3) to (11, 8) |
+
+Note that the `CW_NORTH` entry zone and the `CW_EAST` exit zone meet at the corner **(8, 8)**. A pedestrian standing there is genuinely ambiguous, which is what Demo B shows.
+
+### Named pedestrian presets
+
+Defined in `triveni/simulator/pedestrian_simulator.py`:
+
+| Preset | Position | Expected result (if everything else is valid) |
+|---|---|---|
+|
