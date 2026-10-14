@@ -161,7 +161,7 @@ Each crosswalk has two zones, given as polygons in meters from the intersection 
 |---|---|
 | `remaining_time_ms` | Time left in the current phase |
 | `source_timestamp_ms` | When the controller produced the data |
-| `receive_timestamp_ms` | When pedstrain's device received it |
+| `receive_timestamp_ms` | When pedestrain's device received it |
 
 **Signal age** = `now_ms - source_timestamp_ms`. The signal is stale if its age exceeds `signal_freshness_ms`. Only the **pedestrian signal** of each crosswalk is used.
 
@@ -242,19 +242,43 @@ wrong_intersection_result: UNAVAILABLE   # or FAULT
 
 `data/intersection_demo.json` models **INT_KEMPS_CORNER** (Kemps Corner, Mumbai).
 
-- Origin `(0, 0)` = intersection centre
-- `+x` = East, `+y` = North
-- Units: meters
-- `heading_deg`: 0° = East, 90° = North, counter-clockwise
+Top-level fields:
 
-Each zone is a rectangle (`x_min, y_min` to `x_max, y_max`):
+| Field | Value |
+|---|---|
+| `intersection_id` | `INT_KEMPS_CORNER` (must match the ID in `SignalState` and `LocalizationState`) |
+| `name` | `Kemps Corner, Mumbai` |
+| `units` | `meters` |
+| `origin` | intersection centre `(0, 0)`; `+x` = East, `+y` = North |
+| `crosswalks` | list of the four crosswalks below |
 
-| Crosswalk | Entry zone (red) | Exit zone (green) |
-|---|---|---|
-| `CW_NORTH` | (3, 8) to (8, 11) | (-8, 8) to (-3, 11) |
-| `CW_WEST` | (-11, 3) to (-8, 8) | (-11, -8) to (-8, -3) |
-| `CW_SOUTH` | (-8, -11) to (-3, -8) | (3, -11) to (8, -8) |
-| `CW_EAST` | (8, -8) to (11, -3) | (8, 3) to (11, 8) |
+`heading_deg` is the walking direction from the entry zone to the exit zone: 0° = East, 90° = North, 180° = West, 270° = South (counter-clockwise from East).
+
+Each crosswalk is named after the side of the intersection where it sits. Each zone is a rectangle, stored as four `[x, y]` vertices.
+
+| Crosswalk | `heading_deg` | Walking direction | Entry zone (red) | Exit zone (green) |
+|---|---|---|---|---|
+| `CW_NORTH` | 180 | West | x 3 to 8, y 8 to 11 | x -8 to -3, y 8 to 11 |
+| `CW_EAST` | 90 | North | x 8 to 11, y -8 to -3 | x 8 to 11, y 3 to 8 |
+| `CW_SOUTH` | 0 | East | x -8 to -3, y -11 to -8 | x 3 to 8, y -11 to -8 |
+| `CW_WEST` | 270 | South | x -11 to -8, y 3 to 8 | x -11 to -8, y -8 to -3 |
+
+Exact vertices as stored in the JSON:
+
+```json
+{
+  "intersection_id": "INT_KEMPS_CORNER",
+  "name": "Kemps Corner, Mumbai",
+  "units": "meters",
+  "origin": "intersection center (0,0); +x East, +y North",
+  "crosswalks": [
+    {"crosswalk_id": "CW_NORTH", "entry_zone": [[3,8],[8,8],[8,11],[3,11]],         "exit_zone": [[-8,8],[-3,8],[-3,11],[-8,11]],       "heading_deg": 180},
+    {"crosswalk_id": "CW_EAST",  "entry_zone": [[8,-8],[11,-8],[11,-3],[8,-3]],     "exit_zone": [[8,3],[11,3],[11,8],[8,8]],            "heading_deg": 90},
+    {"crosswalk_id": "CW_SOUTH", "entry_zone": [[-8,-11],[-3,-11],[-3,-8],[-8,-8]], "exit_zone": [[3,-11],[8,-11],[8,-8],[3,-8]],       "heading_deg": 0},
+    {"crosswalk_id": "CW_WEST",  "entry_zone": [[-11,3],[-8,3],[-8,8],[-11,8]],     "exit_zone": [[-11,-8],[-8,-8],[-8,-3],[-11,-3]],   "heading_deg": 270}
+  ]
+}
+```
 
 Note that the `CW_NORTH` entry zone and the `CW_EAST` exit zone meet at the corner **(8, 8)**. A pedestrian standing there is genuinely ambiguous, which is what Demo B shows.
 
@@ -264,4 +288,119 @@ Defined in `triveni/simulator/pedestrian_simulator.py`:
 
 | Preset | Position | Expected result (if everything else is valid) |
 |---|---|---|
-|
+| `near_correct_crosswalk` | (5.5, 9.5) | `WALK`, inside `CW_NORTH` entry only |
+| `low_uncertainty` | (5.5, 9.5), 0.3 m | `WALK` |
+| `near_wrong_crosswalk` | (-9.5, 5.5) | `UNAVAILABLE / CROSSWALK_MISMATCH` when intended is `CW_NORTH` |
+| `between_two_crosswalks` | (8.0, 8.0) | `UNAVAILABLE / CROSSWALK_AMBIGUOUS` |
+| `high_uncertainty` | (5.5, 9.5), 2.0 m | `UNAVAILABLE / LOCALIZATION_UNCERTAINTY_TOO_HIGH` |
+| `missing_localization` | none | `UNAVAILABLE / LOCALIZATION_MISSING` |
+| `stale_localization` | (5.5, 9.5), old timestamp | `UNAVAILABLE / LOCALIZATION_STALE` |
+| `wrong_intersection_id` | (5.5, 9.5) | `UNAVAILABLE` or `FAULT` / `WRONG_INTERSECTION` |
+| `not_in_any_zone` | (0, 0) | `UNAVAILABLE / CROSSWALK_NOT_ESTABLISHED` |
+
+All timestamps are passed in explicitly. No wall-clock is used, so every scenario is repeatable.
+
+---
+
+## Demos
+
+Run with `python run_demo.py`.
+
+| Demo | Scenario | Expected output |
+|---|---|---|
+| **A: Valid crossing** | `CW_NORTH` = WALK, pedestrian at (5.5, 9.5), fresh data, healthy system | `WALK` / `ALL_REQUIRED_CONDITIONS_VALID` |
+| **B: Ambiguous crosswalk** | `CW_NORTH` = WALK, pedestrian at (8.0, 8.0), the shared corner of `CW_NORTH` entry and `CW_EAST` exit | `UNAVAILABLE` / `CROSSWALK_AMBIGUOUS` |
+| **C: Stale signal** | `CW_NORTH` = WALK, signal age 900 ms (above the 500 ms threshold) | `UNAVAILABLE` / `SIGNAL_STALE` |
+| **D: Don't walk** | `CW_NORTH` = DONT_WALK | `WAIT` / `SIGNAL_NOT_WALK` |
+
+---
+
+## Tests
+
+```bash
+pytest -v
+```
+
+`tests/test_safety_engine.py` covers the mandatory scenarios from the milestone spec, plus additional cases found during implementation:
+
+| Scenario | Expected state |
+|---|---|
+| WALK + correct crosswalk + good localization + fresh data | `WALK` |
+| DON'T WALK signal | `WAIT` |
+| Signal missing | `UNAVAILABLE` |
+| Signal stale | `UNAVAILABLE` |
+| Localization missing | `UNAVAILABLE` |
+| Localization uncertainty too high | `UNAVAILABLE` |
+| Wrong intersection ID | `FAULT` or `UNAVAILABLE` (configurable) |
+| Crosswalk ambiguous | `UNAVAILABLE` |
+| Critical component unhealthy | `FAULT` |
+| WALK changes to DON'T WALK | leaves `WALK` immediately |
+
+---
+
+## Decision log
+
+Every decision writes one JSON record (JSON Lines, `.jsonl`), including the evidence needed to reconstruct why it happened:
+
+```json
+{
+  "decision_timestamp_ms": 100050,
+  "intersection_id": "INT_KEMPS_CORNER",
+  "crosswalk_id": "CW_NORTH",
+  "signal": "WALK",
+  "signal_age_ms": 50,
+  "position_uncertainty_m": 0.75,
+  "crosswalk_match": true,
+  "signal_valid": true,
+  "localization_valid": true,
+  "system_healthy": true,
+  "decision": "WALK",
+  "reason_codes": ["ALL_REQUIRED_CONDITIONS_VALID"]
+}
+```
+
+Alongside these fields the engine records predicate results (`Sv` to `Tv`), candidate crosswalks, ages, remaining time and the thresholds used.
+
+---
+
+## Reason codes
+
+| Code | Result | Meaning |
+|---|---|---|
+| `ALL_REQUIRED_CONDITIONS_VALID` | WALK | All predicates passed |
+| `SIGNAL_NOT_WALK` | WAIT | Signal is `DONT_WALK` or `CLEARANCE` |
+| `INSUFFICIENT_REMAINING_TIME` | WAIT | Remaining walk time below the minimum, or missing when required |
+| `SIGNAL_MISSING` | UNAVAILABLE | No `SignalState` for the established crosswalk |
+| `SIGNAL_STALE` | UNAVAILABLE | Signal age > `signal_freshness_ms` |
+| `SIGNAL_TIMESTAMP_INVALID` | UNAVAILABLE | Contradictory or future source timestamp |
+| `LOCALIZATION_MISSING` | UNAVAILABLE | No localization data |
+| `LOCALIZATION_STALE` | UNAVAILABLE | Localization age > `localization_freshness_ms` |
+| `LOCALIZATION_TIMESTAMP_INVALID` | UNAVAILABLE | Negative or future localization timestamp |
+| `LOCALIZATION_UNCERTAINTY_TOO_HIGH` | UNAVAILABLE | Uncertainty > `max_position_uncertainty_m` |
+| `WRONG_INTERSECTION` | UNAVAILABLE / FAULT | Data belongs to a different intersection |
+| `CROSSWALK_AMBIGUOUS` | UNAVAILABLE | Position circle overlaps zones of more than one crosswalk |
+| `CROSSWALK_NOT_ESTABLISHED` | UNAVAILABLE | Position is not in any entry zone |
+| `CROSSWALK_MISMATCH` | UNAVAILABLE | Established crosswalk differs from the intended one |
+| `SYSTEM_DEGRADED` | UNAVAILABLE | A component is `DEGRADED` and none is `FAULT` |
+| `SYSTEM_UNHEALTHY` | FAULT | A critical component is `FAULT`, or health or map is missing |
+| `UNKNOWN_ERROR` | FAULT | Unexpected exception; never `WALK` |
+
+---
+
+## Known limitations and assumptions
+
+**Limitations**
+
+- **Mid-crossing guidance is not defined.** Once a pedestrian leaves the entry zone, the engine returns `UNAVAILABLE / CROSSWALK_NOT_ESTABLISHED`. This is intentional. Milestone 02 will define mid-crossing and exit-zone behavior.
+- `localization_source` must be `"SIMULATED"`. Real adapters will add other allowed values.
+- `heading_deg` is stored in the map and localization but is not yet used in any safety predicate.
+- No hardware integration of any kind.
+
+**Assumptions** (where the spec was ambiguous, the most conservative interpretation was used)
+
+1. **Ambiguity rule:** a position circle that overlaps *any* zone (entry or exit) of more than one crosswalk is `CROSSWALK_AMBIGUOUS`, not only entry-to-entry overlaps.
+2. **Missing `require_remaining_time`:** defaults to `true`.
+3. **Missing `wrong_intersection_result`:** defaults to `UNAVAILABLE`.
+
+---
+
