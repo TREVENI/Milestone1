@@ -1,4 +1,4 @@
-# TRIVENI-ITS: Core Guidance & Safety Emulator (Milestone 01, v0.1)
+# TRIVENI-ITS:Milestone 1
 
 **Traffic-Responsive Infrastructure for Visually-impaired Enablement at Intersections**
 
