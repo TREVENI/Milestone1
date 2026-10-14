@@ -262,22 +262,7 @@ Each crosswalk is named after the side of the intersection where it sits. Each z
 | `CW_EAST` | 90 | (8, -8), (11, -8), (11, -3), (8, -3) | (8, 3), (11, 3), (11, 8), (8, 8) |
 | `CW_SOUTH` | 0 | (-8, -11), (-3, -11), (-3, -8), (-8, -8) | (3, -11), (8, -11), (8, -8), (3, -8) |
 | `CW_WEST` | 270 | (-11, 3), (-8, 3), (-8, 8), (-11, 8) | (-11, -8), (-8, -8), (-8, -3), (-11, -3) |
-Exact vertices as stored in the JSON:
 
-```json
-{
-  "intersection_id": "INT_KEMPS_CORNER",
-  "name": "Kemps Corner, Mumbai",
-  "units": "meters",
-  "origin": "intersection center (0,0); +x East, +y North",
-  "crosswalks": [
-    {"crosswalk_id": "CW_NORTH", "entry_zone": [[3,8],[8,8],[8,11],[3,11]],         "exit_zone": [[-8,8],[-3,8],[-3,11],[-8,11]],       "heading_deg": 180},
-    {"crosswalk_id": "CW_EAST",  "entry_zone": [[8,-8],[11,-8],[11,-3],[8,-3]],     "exit_zone": [[8,3],[11,3],[11,8],[8,8]],            "heading_deg": 90},
-    {"crosswalk_id": "CW_SOUTH", "entry_zone": [[-8,-11],[-3,-11],[-3,-8],[-8,-8]], "exit_zone": [[3,-11],[8,-11],[8,-8],[3,-8]],       "heading_deg": 0},
-    {"crosswalk_id": "CW_WEST",  "entry_zone": [[-11,3],[-8,3],[-8,8],[-11,8]],     "exit_zone": [[-11,-8],[-8,-8],[-8,-3],[-11,-3]],   "heading_deg": 270}
-  ]
-}
-```
 
 Note that the `CW_NORTH` entry zone and the `CW_EAST` exit zone meet at the corner **(8, 8)**. A pedestrian standing there is genuinely ambiguous, which is what Demo B shows.
 
